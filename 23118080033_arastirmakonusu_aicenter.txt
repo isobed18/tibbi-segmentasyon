@@ -1,0 +1,29 @@
+Araştırma projemde, tıbbi görüntü segmentasyonu alanında kullanılan derin öğrenme modellerinin performansını çok yönlü bir şekilde incelemeyi hedefliyorum. Yaptığım incelemeler sonucu gördüm ki tıbbı görüntü segmentasyonunda en başarılı modellerin başında bu alanda uzun süredir yerini koruyan, en güçlü temellerden CNN tabanlı U-Net mimarileri geliyor. Bu mimariye sahip modellerde gördüğümüz ortak bir şey var ki bu da lokal özellikleri yakalamaktaki gösterdikleri başarı oluyor, burada lokal özellikler derken bahsettiğimiz şeyler görüntülerdeki detaylar, örneğin tıbbı görüntüde tümörlü kısmın kenar detayları oluyor. Birazdan bahsedeceğimiz ve araştırma projesi boyunca karşılaştırmayı hedeflediğim bir diğer mimaride ise biraz farklılık göreceğiz.
+
+Tabii ki CNN tabanlı mimariler hala bu alanda çok güçlü olsalar da son yıllarda gözümüze bir mimari daha çarpıyor: Transformer tabanlı yaklaşımlar. Bu modellerin CNN’lere göre daha güçlü olduğu yön ise global özellikleri anlamaktaki başarısı yani görüntünün genel yapısını daha iyi kavrayabiliyor, görüntünün iki ucundaki yerlerde bir bağlantı varsa bunu daha iyi anlayabiliyor. Peki bu global bağlamdaki başarısı bizim ne işimize yarayacak? Araştırmalarda bahsedilen Transformer mimarilerinin karmaşık dokularda daha iyi performans gösterdiğini, doğruluğun daha yüksek olduğudur. Fakat tabii ki CNN’lerin hala güçlü olmasının bir sebebi ise Transformer mimarilerinin kötü bir yani olan maliyet. Transformer tabanlı bu modeller genelde daha fazla bellek, daha fazla işlem gücü, daha yavaş çıkarım hızına sahip olabiliyor. Yani burada şu söyleniyor: tamam doğruluğumuz artıyor ama maliyete değiyor mu? İşte benim araştırmam da tam olarak buna dayanacak, bu iki türdeki modellerin her açıdan karşılaştırılması.
+
+Projenin ana hedefi şu: Bu kadar model elimizdeyken gerçekten hangisi, hangi şartlarda daha iyi?
+Burada karşılaştırmaları yaparken sadece bu makalelerdeki sonuçlardan tablolardan direkt olarak okuyup araştırma makalemde özetlemeyeceğim. Burada benim amacım kendi donanımımda, aynı koşullarda, açık veri setleriyle deneysel bir inceleme yapmak. Burada olması gerektiği gibi bu deneyleri yapıp raporlamadan önce yapacağım şey akademik dünyada bu modeller hakkında ne konuşuluyor, ne gibi yönlerinin öne çıktığı düşünülüyor, iyi ve kötü yönleri ne olarak belirtiliyor tüm bunları anlatarak aslında bu modellerin ne olduklarını güncel kaynaklarla inceleyip anlatacağım. Tıbbı görüntü segmentasyonunda gelecekte bizi neler bekliyor, şuan durumumuz nasıl, bu modeller dünyanın neresinde nasıl kullanılıyor gibi bilgileri de araştırarak alanın güncel durumu ve geleceği hakkında da bir araştırma yapacağım. 
+
+Bu deneysel araştırmalarım CNN ve Transformer tabanlı modellerin literatürde en iyi modelleri kapsayacak. Burada ileride gelişeceği düşünülen ama şu an en iyi modellerle yarışamayanlar varsa onları da ekleyip incelemeyi düşünüyorum.
+
+Araştırma boyunca yapmak istediğim şey modelleri direkt olarak doğruluk üzerinden karşılaştırmak olmayacak:
+Dice/IoU gibi metrikler
+Çıkarım hızı
+VRAM tüketimi
+Parametre sayısı ve FLOPS
+Eğitim sürecindeki verimlilik
+gibi karşılaştırma ölçütleriyle değerlendireceğim. Bu ise bana sadece düz bir “hangisi daha doğru?” sorusunun cevabının değil, hangisinin maliyeti ne, hangisini eğitmek daha kolay, hangisi daha hızlı gibi bir çok sorunun cevabını da verecek. Bununla birlikte gerçek senaryolarda nasıl davranıyorlar onu göreceğiz. Ve tüm modellerin birçok veri seti üzerindeki detaylı karşılaştırmasını sağlayacağım için literatüre de katkı yapmış olabileceğim. 
+Özetlemek gerekirse “CNN mi Transformer mı?” sorusuna pratik bir incelemeyi de katarak birçok veri üzerinde detaylı incelemesini ve karşılaştırmasını yapmak istiyorum. Burada yapacağım bir diğer katkı ise şu olabilir ki bu benim için çok büyük bir başarım tüm bu sonuçlardan yararlanarak performansı hız, doğruluk ve verimlilik açısından daha dengeli ve iyi olan bir model ya da bir model eğitme yaklaşımı sunabilirim. 
+
+Aşağıda kullanmak istediğim veri setlerini(Veri seti/Modalite/Görev/ link) sundum:
+BraTS	MRI	Beyin tümörü segmentasyonu	https://www.synapse.org/brats2025
+LiTS	CT	Karaciğer + lezyon segmentasyonu https://www.kaggle.com/datasets/andrewmvd/lits-png
+LUNA16 CT	Akciğer nodülü tespiti/segmentasyonu	https://luna16.grand-challenge.org/
+ISIC 2018/19/20	Dermoskopi	Melanom/Lezyon https://challenge.isic-archive.com/data/#2018
+MammosighTR (Sağlık Bakanlığı)	Mamografi (DICOM)	Meme kanseri göstergeleri	https://acikveri.saglik.gov.tr/Home/DataSetDetail/3
+İnme BT (Teknofest)	BT (DICOM)	İskemi/Hemoraji	https://acikveri.saglik.gov.tr/Home/DataSetDetail/1
+
+
+23118080033
+İshak Bedir Yorgancı

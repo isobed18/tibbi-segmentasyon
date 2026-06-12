@@ -1,0 +1,237 @@
+
+Tıbbi Görüntü Segmentasyonunda Derin Öğrenme Mimarilerinin Karşılaştırmalı Analizi: Konvolüsyonel Sinir Ağları ve Vision Transformer Yaklaşımları
+
+
+1. Giriş ve Amaç
+
+Tıbbı görüntü segmentasyonu alanında kullanılan neredeyse tüm teknikler son on yılda radikal bir dönüşüm geçirmiştir. Yıllar boyu CNN’ler ve özellikle U-Net mimarisinin varyasyonları sınır belirleme konularındaki yüksek hassasiyeti ile yüksek standardını korumuştur. Ama Vision Transformer mimarileri son yıllardaki yükselişi bu süregelen hakimiyeti sarsmıştır, CNN’lerin sıklıkla kaybolan uzun menzilli bağımlılıkları ve global bağlamlamdaki eksikliklerini dikkat mekanizmalarıyla çözmeye çalışır. Burada ise asıl çözümün en son teknoloji modellere bakılırsa, bu iki modeli tamamen ayırmak değil iyi özelliklerini doğru bir şekilde birleştirerek CNN’lerden daha doğru, Transformerlerden daha az maliyetli ve hızlı olmaya çalışan Hibrit modellerin olduğu görülecektir. 
+Ancak, literatürdeki çalışmaların büyük çoğunluğu, bu rekabeti yalnızca segmentasyon doğruluğu (Dice, IoU) üzerinden değerlendirmektedir. Oysa klinik dağıtım ve gerçek zamanlı karar verme süreçleri için, modellerin hesaplama verimliliği — yani çıkarım hızı (FPS) ve kaynak maliyeti (VRAM, FLOPS)— kritik bir denge unsurudur. Bu çalışmanın temel motivasyonu, mimarilerin Doğruluk, Hız ve Maliyet eksenindeki çok boyutlu performansını sentezlemektir.
+Bu kapsamlı araştırma raporu, bu iki baskın mimari ailesinin ayrıntılı bir karşılaştırmalı analizini sunmaktadır. Bu iki mimarinin düzgün bir şekilde birleştirildiğinde ortaya çıkan hibrit modellerin performansı da incelenecektir. BraTS (beyin tümörleri), LiTS (karaciğer tümörleri), LUNA16 (akciğer nodülleri), ISIC (cilt lezyonları) gibi küresel veri setlerinin yanı sıra, Türk sağlık ekosistemi için kritik öneme sahip iki veri seti olan MammosighTR meme kanseri veri seti ve Teknofest İnme BT veri seti üzerindeki performansları değerlendirilmektedir. Analiz, lokal hassasiyet ile global bağlam arasındaki trade-off’ları ve segmentasyon doğruluğu (Dice/IoU) ile hesaplama maliyeti (VRAM, FLOPS ve çıkarım hızı) arasındaki dengeyi titizlikle incelemektedir. Bulgular, hibrit mimarilerin (Swin-UNETR, TransUNet) karmaşık volümetrik görevlerde üstünlük sağladığını, ancak kaynak kısıtlı klinik dağıtımlarda ve küçük veri setlerinde optimize edilmiş CNN'lerin (UNeXt, LHU-Net) hala vazgeçilmez olduğunu göstermektedir.
+
+2. Teorik Temeller: Mimari Paradigmalar
+
+İnceleyeceğimiz tüm modellerin veri setleri üzerindeki performanslarında gözüken farklılıkları anlamak için, rekabet halinde olan mimarilerin teorik temellerini derinlemesine anlamamız gerekir. Tıbbi görüntü segmentasyonundaki temel gerilim, görevin ikili doğasında yatmaktadır: Ağın bir nesnenin ne olduğunu anlaması (global bağlam gerektiren semantik sınıflandırma) ve tam olarak nerede olduğunu belirlemesi (yüksek frekanslı yerel ayrıntılar gerektiren lokalizasyon).
+
+2.1. Konvolüsyonel Standart: U-Net ve Varyasyonları
+
+U-Net mimarisi, biyomedikal görüntü segmentasyonunun omurgasını oluşturmaktadır. Simetrik encoder-decoder yapısı ve skip connections, kaybolan gradyan problemini ele almakta ve alt örnekleme (down-sampling) sırasında kaybolan uzamsal bilgilerin geri kazanılmasını kolaylaştırmaktadır.
+Endüktif Önyargı(Indictuve Bias) ve Yerellik(Locality):
+Bunları anlatmadan önce kısaca endüktif önyargı, yerellik ve öteleme değişmezliğini açıklamakta fayda var.
+ 
+Endüktif Önyargı: Bir makine öğrenimi modelinin yeni veriyi genellemeye çalışırken kullandığı başlangıç varsayımlarıdır. Mesela CNN’lerde kullandığımız 3x3 piksellik konvolüsyon filtreleri bu modele yerleştirdiğimiz bir endüktif önyargıdır çünkü bu aldığımız kararla model’e “buradaki bir pikseli anlamak için etrafındaki 8 piksele bakman yeterli, o anki özelliği çıkarırken daha uzaktaki piksellerin o özellikle bir alakası yok” diyoruz. 
+Yerellik/Globallik: Yerellik birbirine yakın olan piksellerin yüksek oranda ilişkili olduğu varsayımıdır, CNN’ler için bunun sebebi yukarıda anlattığımız endüktif önyargıdan gelir.  Globallik bir pikselin görüntünün tamamındaki şekil ve bağlama bağlı olmasıdır. Tıbbı segmentasyon görüntüleri için örnek vermek gerekirse: tümor etrafındaki hücre zarının keskin kenarlarını ya da içindeki ince doku ayrıntılarını anlayıp yakalayabilmek yerel bilgidir, global bilgi ise görüntünün genel bağlamını anlar, vücudun benzer dokuya sahip başka bölgesini tümor zannetmesini engeller.
+ Öteleme Değişmezliği: CNN’lerde yukarıda anlattığımız aynı filtreyi görüntünün her bölgesine uyguluyoruz. Bunu yaparak “bir kenar dikey bir çizgi oluşturduğunda bu görüntünün neresinde olursa olsun aynı 3x3 filtre onu tanıyacaktır” demiş oluyoruz. Bu yüzden bir özelliğin görüntünün neresinde konumlandığının bir önemi olmadığını varsayıyoruz, buna da Öteleme Değişmezliği denir. 
+
+
+CNN'ler, yerellik ve öteleme değişmezliğine yönelik güçlü bir endüktif önyargıya sahiptir.1 Bir konvolüsyon çekirdeği, piksellerin küçük bir komşuluğunda çalışır, bu da onu kenarları, dokuları ve ani sınırları tespit etmede olağanüstü derecede verimli kılar. Bu özellik, U-Net varyasyonlarını doğal olarak veri açısından verimli hale getirir; birbirine yakın piksellerin yüksek oranda ilişkili olduğu ön bilgisini mimari olarak zorladıkları için nispeten küçük tıbbi veri setlerinden sağlam özellik temsilleri öğrenebilirler.[3] Özellikle MammosighTR veya Teknofest veri setleri gibi sınırlı etiketli veriye sahip senaryolarda bu özellik kritik bir avantaj sağlar.
+
+Sınırlılıklar ve Alıcı Alan(Receptive Field) Problemi:
+CNN'lerin içsel sınırlılığı alıcı alanıdır (receptive field, bir çıkış pikselinin girdi görüntüsünde etkileyebildiği alan). Konvolüsyonel katmanların derinlemesine yığılması teorik olarak alıcı alanını genişletse de, ampirik kanıtlar CNN'lerin uzun menzilli bağımlılıkları (LRD, görüntünün birbirinden uzakta olan kısımları arasındaki ilişkileri) modellemekte zorlandığını göstermektedir.1 Karmaşık volümetrik(3 boyutlu hacimler) görevlerde, örneğin birden fazla MRI kesiti boyunca uzanan düzensiz bir tümörün takibinde, saf bir CNN, pikseller arasındaki global ilişkiyi açıkça modelleyecek bir mekanizmaya sahip olmadığı için uzamsal olarak ayrılmış iki bölgenin aynı patolojik varlığa ait olduğunu tanıyamayabilir.[5] Bu durum, özellikle LiTS gibi karaciğer tümörü segmentasyonunda, tümörün organ içindeki global konumunun önemli olduğu durumlarda performans kaybına yol açmaktadır.
+
+2.2. Transformer Devrimi: Global Bağlamsallaştırma
+
+Vision Transformer'lar (ViT'ler), konvolüsyon işlemini "Self-Attention" (Öz-Dikkat) mekanizmalarıyla değiştirir veya güçlendirir. Bir Transformer'da, her piksel (veya piksel yaması), uzamsal mesafeden bağımsız olarak görüntüdeki diğer tüm piksellerle teorik olarak ilişki kurabilir.
+Uzun Menzilli Bağımlılıklar (LRD'ler):
+Transformer tabanlı modellerin, örneğin TransUNet ve Swin-UNETR, birincil avantajı global semantik bilgiyi yakalama yeteneğidir.[1] Görüntüyü bir yama dizisi (patch sequence) olarak işleyen öz-dikkat mekanizması, tüm yamalar arasındaki korelasyon skorlarını hesaplar. Bu, modelin akciğer apeksindeki ince bir gölgenin hilumdaki bir nodülle bağlamsal olarak ilişkili olduğunu anlamasını sağlar; yerel bir konvolüsyonun kaçırabileceği bir ilişkidir.
+
+Hesaplama Darboğazı ve Maliyet:
+Standart öz-dikkat mekanizması, belirteç (görüntü yamaları) sayısıyla karesel O(N^2) olarak ölçeklenen bir hesaplama karmaşıklığına sahiptir.[7] Yüksek çözünürlüklü 3D tıbbi hacimler (örneğin CT veya MRI) için bu durum, Video Rastgele Erişim Belleği (VRAM) ve Kayan Nokta İşlemleri (FLOPS) açısından maliyeti aşırı derecede artırır. 512x512x128 boyutunda bir CT taramasını saf bir ViT ile işlemek, standart hastane donanımları için genellikle imkansızdır.[9]
+
+Mimari Evrimler ve Hibridizasyon:
+Bu darboğazı aşmak için çeşitli mimari stratejiler geliştirilmiştir:
+TransUNet: CNN'i ilk özellik çıkarımı için (düşük seviyeli ayrıntıları yakalamak üzere) ve Transformer'ı darboğazda (global bağlamı yakalamak üzere) kullanan, ardından CNN kod çözücüsüne besleyen hibrit bir yaklaşımdır[3].
+Swin-UNet / Swin-UNETR: Öz-dikkati kayan pencerelerle (Shifted Windows) sınırlandırarak karmaşıklığı kareselden lineere indiren ve pencereler arası bağlantıları koruyan hiyerarşik bir yapı kullanır. Bu yaklaşım, volümetrik segmentasyonda (örneğin BraTS) son teknoloji (SOTA) haline gelmiştir[11].
+
+2.3. Yükselen Paradigmalar: Mamba ve Durum Uzay Modelleri (SSM)
+
+Son yıllarda yapılan çalışmalar burada incelediğimiz 2 büyük rakibin yanına bir oyuncu daha ekleneceğini gösteriyor,  Durum Uzay Modelleri(SSM’ler), ve bu mimarinin iyi bir örneği olan Mamba[7] . Mimariler Transformerlardaki o büyük maliyet problemi olan ve 3D ViT’lerin en büyük kötü yanlarından VRAM darboğazı sorununu azaltmak için, global receptive field’ı lineer hesaplama karmaşıklığıyla çözerek vaat ediyor. Burada bahsettiğimiz model olan Swin-UMamba araştırma boyunca inceleyeceğimiz CNN’ler ve Transformerlar arasındaki büyük rekabetin üçlü bir karşılaşmaya dönebileceğini gösteriyor. Sunduğu şey hesaplama karmaşıklığını düşürmek olduğundan kaynağın kısıtlı olduğu ortamlarda Mamba tabanlı bu modellerin CNN’lerin hızı ile beraber Transformerlar’ın doğruluğunu birleştirmesi bekleniyor[16].
+
+3. Veri Setlerine Göre Karşılaştırmalı Analiz ve Bulgular
+
+Aşağıdaki bölümler, belirtilen veri setleri üzerinde bu mimarilerin performansını analiz etmektedir. Her veri seti, farklı mimari karakteristikleri destekleyen benzersiz anatomik ve görüntüleme zorlukları sunmaktadır.
+
+3.1. BraTS (Beyin Tümörü Segmentasyonu)
+
+İnceleyeceğimiz Multimodal Beyin Tümörü Segmentasyon Karşılaştırması (BraTS), 3D segmentasyon mimarilerini değerlendirme amacıyla en iyi kriter olarak değerlendiriliyor. Görev, dört MRI modalitesi (T1, T1ce, T2, FLAIR) kullanarak gliomları(beynin destekleyici dokusu glial hücrelerde oluşan bir grup tümör) alt bölgelere (ödem, güçlenen tümör, nekrotik çekirdek) ayırmaktır.
+ 
+Fotoğraf: https://www.researchgate.net/publication/341469484/figure/fig3/AS:1056342345252864@1628863049106/Example-of-images-from-the-BRATS-2019-dataset-From-left-to-right-T1-T1ce-T2-Flair.png
+
+Zorluk ve Klinik Bağlam:
+Buradaki temel zorluk, tümör şekli boyutu, ve konumundaki yüksek düzeydeki değişikliğin yanında bu MRI görüntülerindeki tümör sınırlarının belirsizliğidir yani bu MRI taramalarının tümör dokusu ve sağlıklı/normal beyin dokusu arasındaki geçişlerin görüntüden kaynaklanan bulanıklığa, belirsizliğe sahip olmasıdır. Bu zorluğu sadece kullandığımız modeller değil sınırları belirleyen uzmanlar da yaşar.
+"Quantitative evaluations revealed considerable disagreement between the human raters in segmenting various tumor sub-regions (Dice scores in the range 74-85%), illustrating the difficulty of this task.(Menze et al., 2015, p. 1993)"
+Çevirisi:
+"Nicel değerlendirmeler, çeşitli tümör alt bölgelerini segmentasyonda insan uzmanlar arasında kayda değer bir anlaşmazlık olduğunu ortaya koydu (Dice skorları %74-85 aralığında), bu da görevin zorluğunu göstermektedir.”
+ Buradaki farklı modlar, tümörün farklı bileşenlerini vurgular; örneğin FLAIR beyindeki ödemi gösterir, T1ce ise  aktif tümör çekirdeğini gösterir. İşte tam da bunların arasındaki ilişkiyi anlamak için global bağlamda anlama yetisine sahip olan modellere ihtiyacımız olacak.
+
+Performans Analizi:
+BraTS 2018–2022 yarışmalarında liderlik, ağırlıklı olarak U-Net ve nnU-Net gibi saf CNN mimarilerindeydi. Sensors (2025) derlemesine göre BraTS 2023 ve 2024 döneminde üst sıralara yerleşen çözümler, CNN tabanlı modellerin Swin-UNETR, UNETR++ veya benzeri Transformer tabanlı segmenterlerle birleştirildiği hibrit ensemble yaklaşımlarına kaymıştır.
+Tablolardan da görüleceği üzere tüm modeller arasında net bir kazanan olmasa da son teknoloji (SOTA) modellerin neredeyse hepsi hibrit modellerdir. 
+ [11, table 2]
+Başarı Mekanizması: BraTS'ın veri setinde anlattığımız bu sahip olduğu çok modlu doğası, Transformer'ın dikkat mekanizması sayesinde daha iyi anlaşılabilir.CNN'ler bu modaliteler arası ilişkiyi sadece kanal boyutu üzerinden (channel-wise) kurmaya çalışırken, Transformer'lar uzamsal ve kanalsal dikkati birleştirebilir. Mesela segmentasyon görevinde spesifik bir bölgeye odaklanmak istediğinde, mesela nekrotik çekirdek, T1Ce görüntülerine dikkat edebilirken, çekirdek çevresindeki ödemi anlaması gerektiğinde FLAIR görüntüsüne “dikkat” edebilir. 
+Hibrit Üstünlüğü: Saf Transformer'lar genellikle gliomların pürüzlü sınırlarında zorlanırken, UNETR++ gibi hibrit modeller, verimli eşleştirilmiş dikkat blokları (efficient paired attention blocks) kullanarak parametreleri %71 oranında azaltırken saf CNN'lerden daha yüksek doğruluk elde etme yeteneği göstermiştir[8]. Burada CNN’lerin iyi olduğu, bahsettiğimiz lokal özellikleri anlama konusunda saf bir CNN olmadan bile hibrit bir modelle CNN’lerden daha iyi performans gösterebilen bir model olabileceğini göstermiştir.
+Metrik	3D U-Net (Optimize Edilmiş)	nnU-Net	Swin-UNETR	UNETR++
+Tüm Tümör (WT) Dice	~88.11%	92.5%	92.8%	93.0%
+Tümör Çekirdeği (TC) Dice	~82.51%	93.1%	93.4%	93.8%
+Güçlenen Tümör (ET) Dice	~79.98%	85.2%	85.9%	86.2%
+Parametre Sayısı	Düşük	Orta	Yüksek (~62M)	Düşük (~20M)
+Çıkarım Hızı	Hızlı	Orta	Yavaş	Orta-Hızlı
+Veriler [8] kaynaklarından derlenmiştir. 
+
+3.2. LiTS (Karaciğer Tümörü Segmentasyonu)
+
+Karaciğer Tümörü Segmentasyon Karşılaştırması (LiTS), Bilgisayarlı Tomografi (CT) taramalarını kullanır. Görev hiyerarşiktir: Karaciğeri (büyük, nispeten tutarlı şekil) ve içindeki tümörleri (değişken boyut, genellikle küçük, düşük kontrast) segmentlere ayırmak.
+Zorluk:
+Büyük bir hacim içinde "küçük nesne tespiti" problemi. Tümörler çok küçük olabilir ve çevreleyen sağlıklı karaciğer parankimi ile çok benzer yoğunluklar sergileyebilir.
+Performans Analizi:
+Global vs. Yerel: Karaciğer organının kendisini segmentlere ayırmak, karaciğerin karın içinde belirgin bir global şekle ve konuma sahip olması nedeniyle Transformer'lar için uygun bir görevdir. Ancak, küçük tümörleri segmentlere ayırmak, CNN'lerin geleneksel olarak üstün olduğu yüksek frekanslı yerel doku analizini gerektirir.
+TransUNet & Swin-Unet Başarısı: TransUNet, yerel özellikler için bir ResNet50 omurgasını Transformer darboğazıyla birleştirerek bu alanda U-Net'e göre üstünlük sağlamıştır. Kıyaslamalar, TransUNet'in organ segmentasyonunda yaklaşık %96.45 Dice skoruna ulaşarak saf CNN'lerden daha iyi performans gösterdiğini ortaya koymaktadır.[3]
+Hibrit Yaklaşımlar: LiTS üzerindeki en başarılı modeller şu anda "Tamamlayıcı CNN-Transformer" füzyonunu kullanmaktadır. Örneğin, dilate konvolüsyon kodlayıcısının kuyruğuna bir Transformer modülü yerleştirmek, modelin karaciğerin global bağlamını yakalamasına izin verirken tümör sınırları için gereken çözünürlüğü korumasını sağlar[19].
+Veri Verimliliği ve Mamba: LiTS üzerinde yapılan few-shot (az örnekli) öğrenme deneylerinde, FSS-ULivR gibi modeller, Transformer mekanizmalarına benzer dikkat kapıları kullanarak %98.94 gibi olağanüstü Dice skorlarına ulaşmıştır[7].
+
+3.3. LUNA16 (Akciğer Nodül Analizi)
+
+LUNA16, erken akciğer kanseri teşhisinde kritik bir adım olan CT taramalarında pulmoner nodüllerin tespiti ve segmentasyonuna odaklanır.
+Zorluk:
+Bu, öncelikle bir tespit ve yanlış pozitif azaltma (false-positive reduction) görevidir. Nodüller genellikle küreseldir ancak plevra veya damarlara (juksta-plevral/vasküler nodüller) yapışık olabilir, bu da sınır tanımını zorlaştırır. Küçük nodüllerin damar kesitleriyle karıştırılması sık görülen bir hatadır.
+Performans Analizi:
+CNN Verimliliği: Tarihsel olarak, çok görünümlü (multi-view) CNN'ler ve 3D U-Net'ler LUNA16'ya hakim olmuştur. Bir nodülün yerel doğası (küçük, lokalize bir yoğunluk), CNN'lerin endüktif önyargısıyla mükemmel bir uyum içindedir.
+Transformer Entegrasyonu: Son hibrit modeller teknolojiyi ileri taşımıştır. LUNA16'ya uygulanan bir Vision Transformer ağı, geleneksel CNN kıyaslamalarını yaklaşık %1.2 oranında geçerek %93.57'lik bir doğruluğa ulaşmıştır[20].
+Yanlış Pozitif Azaltma: Transformer'lardaki dikkat mekanizması, yanlış pozitif azaltma için özellikle değerlidir. Modelin, damarın kesitsel tutarlılığını ve global tübüler yapısını, nodülün küresel doğasına karşı analiz ederek bir nodülü bir kan damarından ayırt etmesini sağlar. Bu, "global" bir geometrik özelliktir ve yerel bir CNN'in gözden kaçırabileceği bir bağlamdır[20]
+Mimari	Segmentasyon Dice Skoru	Duyarlılık (Tespit)	Yanlış Pozitif/Tarama
+U-Net (Taban)	0.951	92.2%	> 1.0
+Res-U-Net	0.968	94.4%	~1.0
+Hibrit ViT-CNN	0.988	95.6%	< 1.0
+Veriler[20] kaynaklarından derlenmiştir.
+
+3.4. ISIC (Cilt Lezyonu Segmentasyonu)
+
+ISIC veri setleri (2018/2024), 2D dermoskopik görüntüleri içerir. Bu, volümetrik olmayan ve yüksek çözünürlüklü renkli fotoğrafçılık olması bakımından önceki veri setlerinden ayrılır.
+Zorluk:
+Kıl, jel kabarcıkları, cetvel işaretleri gibi artefaktlar ve zayıf aydınlatma koşulları temel zorluklardır. Lezyonlar genellikle bulanık, geçişli sınırlara (melanositik nevüsler) sahiptir.
+Performans Analizi:
+"Doğal Görüntü" Korelasyonu: ISIC görüntüleri doğal görüntülere (tıbbi olmayan fotoğrafçılık) benzediği için, ImageNet'ten Transfer Öğrenimi (Transfer Learning) son derece etkilidir. Transformer'lar, büyük veri setlerinde ön eğitim alındığında bu avantajı maksimize eder.
+TransUNet Başarısı: TransUNet ve Swin-Unet, artefaktlara karşı U-Net'e göre dikkate değer bir direnç göstermiştir. Öz-dikkat mekanizması, modelin güçlü kenar gradyanı nedeniyle bir kıl telini lezyon sınırı olarak yanlış yorumlayabilecek bir konvolüsyonun aksine, pigment desenine global olarak odaklanarak kıl artefaktlarını "görmezden gelmesini" sağlar[23].
+Kıyaslama: ISIC 2018 veri setinde, TransUNet yaklaşık %94.24'lük bir Dice skoruna ulaşarak, %90-91 civarında seyreden standart U-Net uygulamalarını geride bırakmıştır[24] Hibrit yapı, kesin sınır belirleme (CNN) sağlarken oklüzyona karşı sağlamlığı (Transformer) korur.
+Hafif Modeller: U-Net v2 gibi optimize edilmiş CNN varyasyonları, uzamsal ve kanalsal dikkat mekanizmaları (SDI) kullanarak Transformer benzeri performanslara çok daha düşük hesaplama maliyetiyle ulaşabilmektedir[26]
+
+3.5. MammosighTR (Türk Meme Kanseri Veri Seti)
+
+Bağlam: MammosighTR, Türkiye'deki Kanser Erken Teşhis, Tarama ve Eğitim Merkezleri (KETEM) veritabanından derlenen önemli bir ulusal veri setidir. Binlerce mamografi vakasını BI-RADS kategorileri ile etiketlenmiş olarak içerir[27].
+Zorluk:
+Mamografiler yüksek çözünürlüklü 2D X-ışınlarıdır. Temel zorluk, yoğun meme dokusunda (dokuların üst üste binmesi) ince mikrokalsifikasyonları veya kitleleri tespit etmektir. Sınıf dengesizliği (az sayıda malign vs. çok sayıda benign/normal) şiddetlidir; malign vakalar %0.67 popülasyon prevalansına sahipken veri setinde yapay olarak %39.4'e zenginleştirilmiştir.[27]
+Performans Analizi:
+Mevcut Temel Çizgiler: Bu ve benzeri veri setleri (VinDr-Mammo) üzerindeki araştırmalar, U-Net ve LinkNet'i güçlü temel çizgiler olarak kullanır. U-Net, bir ön işleme gerekliliği olan pektoral kasın çıkarılmasında yüksek hassasiyet sağlar[30].
+Transformer Potansiyeli: MammosighTR üzerindeki spesifik Transformer kıyaslamaları henüz gelişmekte olsa da, benzer mamografi veri setlerindeki dış doğrulama, Transformer tabanlı modellerin (Swin-Transformer gibi) CC (Kraniokaudal) ve MLO (Mediolateral Oblik) görünümleri arasındaki bulguları ilişkilendirerek BI-RADS kategorilerinin sınıflandırılmasını iyileştirdiğini göstermektedir. Bu, tek görüntüleri işleyen 2D CNN'lerin yakalayamayacağı bir global bağlam biçimidir[31].
+Kıyaslama: MammosighTR üzerindeki ilk kıyaslamalar, derin öğrenme kullanılarak sınıflandırma görevleri için ~%78.8 doğruluk seviyelerini göstermektedir. "Mammo-Bench" girişimi, azınlık sınıfını (malign BI-RADS 4-5) ele almanın, daha derin CNN'lerde veya Hibritlerde görülen gelişmiş özellik çıkarım yeteneklerini gerektirdiğini ortaya koymaktadır[32]. Transformer'ların buradaki en büyük potansiyeli, sadece kitleyi segmente etmek değil, kitlenin memenin genel yapısı içindeki asimetrisini analiz etmektir.
+
+3.6. Teknofest İnme BT Veri Seti (İnme BT)
+
+Bağlam: Bu veri seti, T.C. Sağlık Bakanlığı ve TUSEB tarafından düzenlenen "Sağlıkta Yapay Zeka" yarışmasından kaynaklanmaktadır. İskemik ve Hemorajik inme için etiketlenmiş kontrastsız beyin BT (NCCT) görüntülerini içerir[33].
+Zorluk:
+Hemorajik: Yüksek kontrast (kan parlaktır), CNN'ler için nispeten kolaydır.
+İskemik: Aşırı düşük kontrast (erken belirtiler ince hipodensitelerdir). Bu, inme görüntülemenin "kutsal kasesi"dir ve hem radyologlar hem de yapay zeka için oldukça zordur.
+Veri Kalitesi: NCCT, MRI'a (BraTS) kıyasla daha düşük sinyal-gürültü oranına sahiptir.
+Performans Analizi:
+CNN Hakimiyeti (Kazananların Yaklaşımı): Teknofest yarışmasının kazanan takımları (örneğin ALZHAI takımı), ağırlıklı olarak U-Net ve DeepLabV3+ mimarilerini kullanmıştır[35].
+Neden Transformer'lar Değil? Transformer'lar, endüktif önyargı eksikliği nedeniyle yakınsamak için devasa veri setlerine ihtiyaç duyarlar. Teknofest veri seti (yaklaşık 6000 görüntü, ancak etiketli inme sayısı daha az), ImageNet veya devasa tescilli veri setlerine kıyasla küçüktür. Ayrıca, iskemik inmenin özellikleri ince yerel doku değişiklikleridir (gri-beyaz cevher ayrımının kaybı). Doku odaklı işleme sahip CNN'ler, Transformer devasa tıbbi veri setlerinde önceden eğitilmedikçe, bu spesifik düşük kontrastlı, gürültülü ortamda genellikle Transformer'lardan daha iyi performans gösterir[36].
+Gelecek Görünümü: CNN kodlayıcı (ince doku özelliklerini çıkarmak için) ve Transformer kod çözücü (sol ve sağ yarımküreler arasındaki simetriyi analiz etmek için) kullanan hibrit modeller umut vadetmektedir, çünkü simetri analizi inme tespiti için yararlı global bir işlemdir.
+
+4. Hesaplama Verimliliği: Doğruluk ve Maliyet Dengesi
+
+"CNN vs. Transformer" tartışmasının kritik ve sıklıkla göz ardı edilen bir yönü hesaplama maliyetidir. Klinik dağıtımda, bir modelin genellikle sınırlı donanım üzerinde (örneğin, bir veri merkezi kümesi değil, bir hastane iş istasyonu GPU'su) çalışması gerekir.
+
+4.1. VRAM Tüketimi ve Parametre Sayısı
+
+CNN'ler (U-Net): Son derece bellek verimlidir. Standart bir 3D U-Net, makul yığın boyutları (batch size) için tüketici sınıfı bir GPU'ya (8GB VRAM) sığabilir.
+Saf Transformer'lar (ViT): Öz-dikkat mekanizmasının karesel karmaşıklığı, VRAM kullanımının girdi boyutuyla patlamasına neden olur. Yüksek çözünürlüklü bir 3D hacmi işlemek, agresif alt örnekleme veya yamalama (patching) olmadan standart donanımda neredeyse imkansızdır[7].
+Swin-UNETR: Pencereli dikkat mekanizmasıyla bunu hafifletir ancak yine de bir U-Net'ten önemli ölçüde daha fazla bellek tüketir.
+Verimlilikteki En Öne Çıkanlar:
+UNeXt: Ağır dikkat veya derin konvolüsyonlar yerine tokenize edilmiş MLP'ler kullanan, TransUNet'e kıyasla parametreleri 72 kat ve karmaşıklığı 68 kat azaltırken rekabetçi doğruluğu koruyan MLP tabanlı bir ağdır[38].
+Mamba/Swin-UMamba: En yeni nesil. Swin-UMamba, abdominal MRI üzerinde hem CNN'lerden hem de ViT'lerden üstün performans gösterirken, lineer karmaşıklık ölçeklemesi nedeniyle önemli ölçüde daha düşük hesaplama kaynaklarına ihtiyaç duyar. Bu, 2025 için potansiyel bir paradigma değişimidir[14]
+
+4.2. Çıkarım Hızı (FLOPS) ve FPS
+
+Aşağıdaki tablo, modellerin hesaplama yükü ve hız karşılaştırmasını özetlemektedir:
+Mimari	Parametre (M)	GFLOPs	Çıkarım Hızı (FPS)	Kullanım Senaryosu
+U-Net (Standart)	~28 M	~478	Yüksek (~39 FPS)	Gerçek zamanlı, Acil (İnme)
+TransUNet	~105 M	> 900	Düşük	Araştırma, Yüksek Doğruluk
+Swin-UNETR	~62 M	~380	Orta	Volümetrik Tümör (BraTS)
+UNeXt	< 2 M	< 10	Çok Yüksek	Mobil/Edge Cihazlar
+LHU-Net (Yalın Hibrit)	~11 M	Düşük	Yüksek	Verimli 3D Segmentasyon
+Veriler[5] kaynaklarından derlenmiştir. Not: Değerler yaklaşıktır ve girdi çözünürlüğü ile spesifik uygulama katmanlarına bağlıdır.
+İçgörü: Transformer'lar liderlik tablolarında (Dice skorları) sıklıkla zirveye yerleşse de, bunu genellikle devasa parametre sayılarıyla yaparlar (TransUNet, U-Net'ten neredeyse 4 kat daha büyüktür). İntraoperatif navigasyon veya hızlı inme triyajı (Teknofest kullanım durumu) gibi gerçek zamanlı uygulamalar için, hafif CNN'ler veya optimize edilmiş hibritler (LHU-Net, UNeXt) genellikle tek geçerli seçenektir[5].
+
+5. Tartışma ve Sentez
+
+
+5.1. "Yerel vs. Global" Ödünleşimi
+
+Veriler tartışmasız bir şekilde CNN'lerin yerel özellik çıkarımında, sınırların keskin gradyanlarla tanımlandığı görevlerde (örneğin, BT'de kemik segmentasyonu, hemorajik inme) mükemmel olduğunu göstermektedir. Transformer'lar ise global bağlamda, ilgi alanının diğer yapılarla ilişkisiyle tanımlandığı görevlerde (örneğin, LiTS'de çoklu organ segmentasyonu, BraTS'de tümör alt bölgelerinin ayırt edilmesi) üstündür.
+Sentezlenmiş İçgörü: Endüstri Hibrit Mimariler üzerinde birleşmektedir. Saf CNN performans platosuna ulaşmıştır ve saf Transformer hesaplama açısından çok pahalıdır. UNETR, Swin-UNETR ve TransUNet gibi "nerede" (lokalizasyon/gömme) sorusu için CNN'leri ve "ne" (bağlam) sorusu için Transformer'ları kullanan modeller, 2024-2025 liderlik tablolarında neredeyse tüm veri setlerinde tutarlı bir şekilde hakimiyet kurmaktadır[1].
+
+5.2. Veri Ölçeği ve Endüktif Önyargı
+
+Transformer'lar CNN'lerin endüktif önyargısından yoksundur, bu da CNN'lerin a priori (önsel) olarak varsaydığı uzamsal ilişkileri öğrenmek için daha fazla veriye ihtiyaç duydukları anlamına gelir.
+Büyük Veri Setlerinde (örneğin, toplanmış dahili hastane verileri, ImageNet ön eğitimi), Transformer'lar daha iyi ölçeklenir ve sonunda CNN'leri geçer.
+Küçük/Spesifik Veri Setlerinde (örneğin, Teknofest İnme, nadir hastalıklar), CNN'ler endüktif önyargıları güçlü bir düzenleyici (regularizer) görevi gördüğü için genellikle Transformer'lardan daha iyi performans gösterir veya yakınsamak için önemli ölçüde daha az eğitim süresine ihtiyaç duyar[2].
+
+5.3. Ön Eğitimin Rolü
+
+ISIC ve BraTS analizlerinde tekrar eden bir tema, ön eğitimin etkisidir. Transformer'lar, büyük tıbbi veri setlerinde kendi kendine denetimli (self-supervised) ön eğitimden (örneğin, Maskelenmiş Görüntü Modelleme) orantısız bir şekilde faydalanır. Bu "temel model" (foundation model) yaklaşımı, Transformer'ların tıbbi görüntülemedeki veri kıtlığı sorununun üstesinden gelmesini sağlamaktadır[13].
+
+6. Sonuç ve Öneriler
+Tıbbi görüntü segmentasyonu için Derin Öğrenme modellerinin karşılaştırmalı analizi, hiçbir mimarinin tüm alanlarda tek başına hüküm sürmediği nüanslı bir manzara ortaya koymaktadır.
+Doğruluk: Hibrit Transformer-CNN modelleri (Swin-UNETR, TransUNet), BraTS ve LiTS gibi karmaşık, çok modlu 3D görevler için belirsiz sınırları çözmek adına global bağlamdan etkili bir şekilde yararlanarak şu anda en yüksek segmentasyon doğruluğunu (Dice/IoU) sunmaktadır.
+Verimlilik: Kaynak kısıtlı ortamlar veya gerçek zamanlı uygulamalar (örneğin, İnme BT triyajı) için, optimize edilmiş CNN'ler (U-Net varyasyonları) veya yeni ortaya çıkan MLP tabanlı mimariler (UNeXt), düşük VRAM ayak izi ve yüksek çıkarım hızı nedeniyle üstün seçenek olmaya devam etmektedir.
+Ulusal Veri Setleri: MammosighTR ve Teknofest İnme gibi spesifik veri setleri için mimari seçimi veri hacmini dikkate almalıdır. CNN'ler, küçük, daha gürültülü veri setleri (NCCT) için daha güvenli bahislerdir; Transformer'lar ise yalnızca global bağımlılıkları öğrenmek için yeterli etiketli veri mevcut olduğunda değer katar.
+Gelecek Görünümü: 2024/2025 sonlarında Mamba (Durum Uzay Modelleri) mimarisinin hızlı yükselişi potansiyel bir kırılmaya işaret etmektedir. Transformer'ların global alıcı alanını CNN'lerin lineer karmaşıklığıyla sunarak, SSM'ler sonunda mevcut ikili seçimi gereksiz kılabilir ve ne hızdan ne de doğruluktan ödün vermeyen birleşik bir mimari sunabilir.
+BraTS, LiTS, LUNA16, ISIC, MammosighTR ve İnme veri setlerini hedefleyen bu araştırma projesi için; volümetrik görevlerde (BraTS, LiTS, LUNA16) doğruluğu maksimize etmek adına Hibrit Swin-UNETR yaklaşımı önerilirken, İnme ve Mamografi görevlerinde performans ile klinik dağıtımın sinyal-gürültü zorlukları ve hesaplama kısıtlamalarını dengelemek adına U-Net++ veya UNeXt yaklaşımı önerilmektedir.
+
+Alıntılanan çalışmalar
+1.	Yao, W., Bai, J., Liao, W., Chen, Y., Liu, M., & Xie, Y. (2024). From CNN to Transformer: A Review of Medical Image Segmentation Models. Journal of Imaging Informatics in Medicine. https://doi.org/10.1007/s10278-024-00981-7
+2.	Li, J., Chen, J., Tang, Y., Wang, C., Landman, B. A., & Zhou, S. K. (2023). Transforming medical imaging with Transformers? A comparative review of key properties, current progresses, and future perspectives. Medical Image Analysis, 85, 102762. https://doi.org/10.1016/j.media.2023.102762
+3.	Yao, W., Bai, J., Liao, W., Chen, Y., Liu, M., & Xie, Y. (2024b). From CNN to Transformer: A Review of Medical Image Segmentation Models. Journal of Imaging Informatics in Medicine. https://doi.org/10.1007/s10278-024-00981-7
+4.	Huang, X., Deng, Z., Li, D., Yuan, X., & Fu, Y. (2023). MISSFormer: An Effective Transformer for 2D Medical Image Segmentation. IEEE Transactions on Medical Imaging, 42(5), 1484–1494. https://doi.org/10.1109/tmi.2022.3230943
+5.	LHU-Net: a Lean Hybrid U-Net for Cost-efficient, High-performance Volumetric Segmentation - arXiv https://arxiv.org/html/2404.05102v3
+6.	Armand, T., Bhattacharjee, S., Choi, H.-K., & Kim, H.-C. (2024). Transformers Effectiveness in Medical Image Segmentation: A Comparative Analysis of UNet-Based Architectures. https://doi.org/10.1109/icaiic60209.2024.10463435
+7.	Ly, D.-V.-A., Pham, T.-T.-H., & Le, T.-H. (2025). Comparative Study of UNet-based Architectures for Liver Tumor Segmentation in Multi-Phase Contrast-Enhanced Computed Tomography. ArXiv.org. https://arxiv.org/abs/2510.25522v4
+8.	Shaker, A., Maaz, M., Rasheed, H., Khan, S., Yang, M.-H., & Khan, F. S. (2022). UNETR++: Delving into Efficient and Accurate 3D Medical Image Segmentation. ArXiv.org. https://arxiv.org/abs/2212.04497
+9.	Lemke, N., Kalkhof, J., Babendererde, N., & Mukhopadhyay, A. (2025). OctreeNCA: Single-Pass 184 MP Segmentation on Consumer Hardware. ArXiv.org. https://arxiv.org/abs/2508.06993v1
+10.	mkara44.(Mustafa Kara) (2025). GitHub - mkara44/transunet_pytorch. GitHub. https://github.com/mkara44/transunet_pytorch
+11.	Xing, S., Lai, Z., Zhu, J., He, W., & Mao, G. (2025). Semantic Segmentation of Brain Tumors Using a Local–Global Attention Model. Applied Sciences, 15(11), 5981. https://doi.org/10.3390/app15115981
+12.	Jain, I., Willems, S., Latre, S., & Schepper, D. (2025). On-the-Fly Data Augmentation for Brain Tumor Segmentation. ArXiv.org. https://arxiv.org/abs/2509.24973v1
+13.	Hatamizadeh, A. (2022, June 22). Novel Transformer Model Achieves State-of-the-Art Benchmarks in 3D Medical Image Analysis. NVIDIA Technical Blog. https://developer.nvidia.com/blog/novel-transformer-model-achieves-state-of-the-art-benchmarks-in-3d-medical-image-analysis/
+14.	Liu, J., Yang, H., Zhou, H.-Y., Xi, Y., Yu, L., Yu, Y., Liang, Y., Shi, G., Zhang, S., Zheng, H., & Wang, S. (2024). Swin-UMamba: Mamba-based UNet with ImageNet-based pretraining. ArXiv.org. https://arxiv.org/abs/2402.03302
+15.	Jelassi, S., Brandfonbrener, D., Kakade, S., & Malach, E. (2024, June 13). Repeat After Me: Transformers are Better than State Space Models at Copying - Kempner Institute. Kempner Institute. https://kempnerinstitute.harvard.edu/research/deeper-learning/repeat-after-me-transformers-are-better-than-state-space-models-at-copying/
+16.	openmedlab. (2025). GitHub - openmedlab/Swin-UMamba. GitHub. https://github.com/openmedlab/Swin-UMamba
+17.	Saleh, M. M., & Biswal, B. B. (2025). From U-Net to Swin-Unet Transformers: The Next-Generation Advances in Brain Tumor Segmentation with Deep Learning. Journal of Biomedical Science and Engineering, 18(08), 328–350. https://www.scirp.org/journal/paperinformation?paperid=144861
+18.	Rivera, Chopra, A. S., Ren, T., Oswal, H., Pan, Y., Sordo, Z., Walters, S., Henry, W., Mohammadi, H., Olson, R., Rezayaraghi, F., Lam, T., Jaikanth, A., Kancharla, P., Ruzevick, J., Ushizima, D., & Kurt, M. (2024). An Ensemble Approach for Brain Tumor Segmentation and Synthesis. ArXiv.org. https://arxiv.org/abs/2411.17617v1
+19.	Li, L., & Ma, H. (2022). RDCTrans U-Net: A Hybrid Variable Architecture for Liver CT Image Segmentation. Sensors, 22(7), 2452–2452. https://doi.org/10.3390/s22072452
+20.	Shuvo, Samiul Based, & Mamun, T. B. (2023). An automated end-to-end deep learning-based framework for lung cancer diagnosis by detecting and classifying the lung nodules. ArXiv.org. https://arxiv.org/abs/2305.00046v2
+21.	Marinakis, I., Konstantinos Karampidis, & Giorgos Papadourakis. (2024). Pulmonary Nodule Detection, Segmentation and Classification Using Deep Learning: A Comprehensive Literature Review. BioMedInformatics, 4(3), 2043–2106. https://doi.org/10.3390/biomedinformatics4030111
+22.	Results - LUNA16 - Grand Challenge,
+https://luna16.grand-challenge.org/Results/
+23.	Gulzar, Y., & Khan, S. A. (2022). Skin Lesion Segmentation Based on Vision Transformers and Convolutional Neural Networks—A Comparative Study. Applied Sciences, 12(12), 5990. https://doi.org/10.3390/app12125990
+24.	Manzoor, K., Gilal, N. U., Agus, M., & Schneider, J. (2025). Dual-stage segmentation and classification framework for skin lesion analysis using deep neural network. Digital Health, 11, 20552076251351858-20552076251351858. https://doi.org/10.1177/20552076251351858
+25.	Atiq, Md. Enamul, & Fattah, S. A. (2025). Towards Explainable Skin Cancer Classification: A Dual-Network Attention Model with Lesion Segmentation and Clinical Metadata Fusion. ArXiv.org. https://arxiv.org/abs/2510.17773v1
+26.	Peng, Y., Sonka, M., & Chen, D. Z. (2024, March 30). U-Net v2: Rethinking the Skip Connections of U-Net for Medical Image Segmentation. ArXiv.org. https://doi.org/10.48550/arXiv.2311.17791
+27.	MammosighTR: Nationwide Breast Cancer Screening Mammogram Dataset with BI-RADS Annotations for Artificial Intelligence Applications | Radiology - RSNA Journals, erişim tarihi Kasım 21, 2025, https://pubs.rsna.org/doi/10.1148/ryai.240841
+28.	Koç, U., Karakaş, E., Sezer, E. A., Beşler, M. S., Özkaya, Y. A., Evrimler, Ş., Yalçın, A., Kızıloğlu, H. A., Kesimal, U., Oruç, M., Çankaya, İ., Koç Keleş, D., Merd, N., Özkan, E., Çevik, N. İ., Gökhan, M. B., Hayat, B., Özer, M., Tokur, O., & Işık, F. (2025). MammosighTR: Nationwide Breast Cancer Screening Mammogram Dataset                     with BI-RADS Annotations for Artificial Intelligence                     Applications. Radiology: Artificial Intelligence, 7(6). https://doi.org/10.1148/ryai.240841
+29.	MammosighTR: Nationwide Breast Cancer Screening Mammogram Dataset with BI-RADS Annotations for Artificial Intelligence Applications | Request PDF https://www.researchgate.net/publication/394473984_MammosighTR_Nationwide_Breast_Cancer_Screening_Mammogram_Dataset_with_BI-RADS_Annotations_for_Artificial_Intelligence_Applications
+30.	Sierra-Franco, C. A., Hurtado, J., Victor, Leonardo, Silva, S. V., Greis, & Raposo, A. (2024). Towards Automated Semantic Segmentation in Mammography Images for Enhanced Clinical Applications. Journal of Imaging Informatics in Medicine, 38(4), 2260–2280. https://doi.org/10.1007/s10278-024-01364-8
+31.	Saha, D. K., Hossain, T., Safran, M., Sultan Alfarhood, Mridha, M. F., & Che, D. (2024). Segmentation for mammography classification utilizing deep convolutional neural network. BMC Medical Imaging, 24(1). https://doi.org/10.1186/s12880-024-01510-2
+32.	Mammo-Bench: A Large-scale Benchmark Dataset of Mammography Images | medRxiv https://www.medrxiv.org/content/10.1101/2025.01.31.25321510v2.full-text
+33.	Söylemez, E., Garip, E., Doruk, İ. U., Stroke Detection and Segmentation Using Deep Learning and Machine Learning Techniques on Brain CT Images https://www.researchgate.net/publication/393472424_Stroke_Detection_and_Segmentation_Using_Deep_Learning_and_Machine_Learning_Techniques_on_Brain_CT_Images
+34.	Brain Stroke Dataset Colorized (TEKNOFEST 2021) https://www.kaggle.com/datasets/shuvokumarbasakbd/brain-stroke-dataset-colorized-teknofest-2021
+35.	Koc, U., Akcapinar Sezer, E., Ozkaya, Y. A., Yarbay, Y., Taydas, O., Ayyildiz, V. A., Kiziloglu, H. A., Kesimal, U., Cankaya, I., Besler, M. S., Karakas, E., Karademir, F., Sebik, N. B., Bahadir, M., Sezer, O., Yesilyurt, B., Varli, S., Akdogan, E., Ulgu, M. M., & Birinci, S. (2022). Artificial Intelligence in Healthcare Competition (Teknofest-2021): Stroke Data Set. The Eurasian Journal of Medicine. https://doi.org/10.5152/eurasianjmed.2022.22096
+36.	Artificial Intelligence in Healthcare Competition (TEKNOFEST-2021): Stroke Data Set - The Eurasian Journal of Medicine https://www.eajm.org/Content/files/sayilar/223/248-258.pdf
+37.	Beşler, M. S., & Koç, U. (2025). Systematic review of artificial intelligence competitions in radiology: a focus on design, evaluation, and trends. Diagnostic and Interventional Radiology (Ankara, Turkey), 10.4274/dir.2025.243152. https://doi.org/10.4274/dir.2025.243152
+38.	Valanarasu, J. M. J., & Patel, V. M. (2022, March 9). UNeXt: MLP-based Rapid Medical Image Segmentation Network. ArXiv.org. https://doi.org/10.48550/arXiv.2203.04967
+39.	Swin-UMamba: Mamba-based UNet with ImageNet-based pretraining - arXiv, https://arxiv.org/html/2402.03302v1
+40.	UNETR++: Delving into Efficient and Accurate 3D Medical Image Segmentation - arXiv, https://arxiv.org/html/2212.04497v3
+41.	Kim, J. W., Khan, A. U., & Banerjee, I. (2025). Systematic Review of Hybrid Vision Transformer Architectures for Radiological Image Analysis. Journal of Imaging Informatics in Medicine. https://doi.org/10.1007/s10278-024-01322-4
+42.	Kawadkar, K. (2025). Comparative Analysis of Vision Transformers and Convolutional Neural Networks for Medical Image Classification. ArXiv.org. https://arxiv.org/abs/2507.21156v1
+43.	Menze, B. H., Jakab, A., Bauer, S., Kalpathy-Cramer, J., Farahani, K., Kirby, J., Burdumy, J., Porz, N., Hillenbrand, M., Sloan, E., Katzman, H., Tritschler, I., Waters, K., Hogg, C., Aylward, S. R., Gerstner, E., Weber, M. A., Arbel, T., Reinke, A., & Bakas, S. (2015). The multimodal brain tumor image segmentation benchmark (BRATS). IEEE Transactions on Medical Imaging, 34(10), 1993–2024. https://doi.org/10.1109/TMI.2014.2377694
+44.	Bonato, B., Nanni, L., & Bertoldo, A. (2025). Advancing Precision: A Comprehensive Review of MRI Segmentation Datasets from BraTS Challenges (2012–2025). Sensors, 25(6), 1838–1838. https://doi.org/10.3390/s25061838
+
+

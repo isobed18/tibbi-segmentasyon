@@ -1,0 +1,92 @@
+project:
+  name: tibbi-segmentasyon
+  workspace_dir: C:/Users/ishak/tibbi-segmentasyon
+  artifact_root: D:/tibbi-segmentasyon
+  seed: 23118080033
+
+data:
+  raw_root: D:/tibbi-segmentasyon/data/raw
+  processed_root: D:/tibbi-segmentasyon/data/processed
+  manifests_dir: D:/tibbi-segmentasyon/data/processed/manifests
+  datasets:
+    isic2018:
+      enabled: true
+      task: skin_lesion_segmentation
+      modality: dermoscopy_rgb
+      image_channels: 3
+      num_classes: 1
+    lits_liver:
+      enabled: true
+      task: liver_segmentation
+      modality: ct_png
+      image_channels: 1
+      num_classes: 1
+    lits_lesion:
+      enabled: true
+      task: liver_lesion_segmentation
+      modality: ct_png
+      image_channels: 1
+      num_classes: 1
+    lits_liver_positive:
+      enabled: true
+      task: liver_segmentation_positive_slices
+      modality: ct_png
+      image_channels: 1
+      num_classes: 1
+    lits_lesion_positive:
+      enabled: true
+      task: liver_lesion_segmentation_positive_slices
+      modality: ct_png
+      image_channels: 1
+      num_classes: 1
+    synthetic:
+      enabled: true
+      task: smoke_test_segmentation
+      modality: generated
+      image_channels: 1
+      num_classes: 1
+
+training:
+  image_size: 192
+  batch_size: 8
+  num_workers: 2
+  learning_rate: 0.0003
+  weight_decay: 0.00001
+  amp: true
+  val_fraction: 0.2
+  max_train_items: 1200
+  max_val_items: 300
+
+presets:
+  smoke:
+    datasets: [synthetic]
+    models: [unet, attention_unet, swin_unetr]
+    epochs: 1
+    image_size: 128
+    batch_size: 4
+    max_train_items: 48
+    max_val_items: 16
+  quick:
+    datasets: [isic2018, lits_liver_positive]
+    models: [unet, swin_unetr]
+    epochs: 2
+    image_size: 160
+    batch_size: 6
+    max_train_items: 400
+    max_val_items: 120
+  standard:
+    datasets: [isic2018, lits_liver_positive, lits_lesion_positive]
+    models: [unet, attention_unet, swin_unetr]
+    epochs: 8
+    image_size: 192
+    batch_size: 8
+    max_train_items: 1200
+    max_val_items: 300
+
+models:
+  unet:
+    family: cnn
+  attention_unet:
+    family: cnn_attention
+  swin_unetr:
+    family: transformer_hybrid
