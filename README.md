@@ -2,6 +2,8 @@
 
 Bu çalışma, CNN tabanlı U-Net ailesi ile Transformer/hibrit segmentasyon mimarilerini aynı makinede karşılaştırmak için hazırlanmış yeniden üretilebilir deney altyapısıdır.
 
+Gazi Üniversitesi Yapay Zeka Merkezi'ndeki yarı zamanlı araştırma kapsamında geliştirildi. ISIC ve LiTS tıbbi görüntülerinde U-Net, Attention U-Net ve SwinUNETR modelleri; Dice, hız ve hesaplama maliyeti açısından karşılaştırıldı.
+
 ## Dizinler
 
 - Kod, konfigürasyon ve rapor taslakları: `C:\Users\ishak\tibbi-segmentasyon`
